@@ -1,12 +1,7 @@
-#!/usr/bin/env python3
-#SBATCH --partition=bme.gpustudent.q
-#SBATCH --output=openme.out
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --error=slurm-%j.err
-#SBATCH --time=24:00:00
-#SBATCH --gres=gpu:1
-#SBATCH --constraint=2080ti
+"""
+This file is used to train the distance map model. The model is a U-Net with a linear activation function in the last layer.
+The model is trained on ground truth distance maps of the training data. These can be generated with the distance_map_from_json file.
+"""
 
 
 import tensorflow as tf
@@ -91,28 +86,37 @@ def load_image(img_path, show=False):
     img = image.load_img(img_path, target_size=(1024,1024))
     img_tensor = image.img_to_array(img)                    # (height, width, channels)
     img_tensor = np.expand_dims(img_tensor, axis=0)         # (1, height, width, channels), add a dimension because the model expects this shape: (batch_size, height, width, channels)
-    #img_tensor /= 255.                                      # imshow expects values in the range [0, 1]
+    img_tensor /= 255.                                      # imshow expects values in the range [0, 1]
 
     return img_tensor
 
 
 if __name__ == "__main__":
+    # Set the seed for random operations.
     tf.random.set_seed(123)
 
+    # Set the directory for the checkpoints.
     checkpoint_path = r"./Distance Map Models/Model2.ckpt"
-    checkpoint_dir = os.path.dirname(checkpoint_path)
+    # Set the directory for the original images to be used for training.
+    maindir = '/home/bme001/20203080/RCNN/TUE_tijmen/'
+    # Set the directory for the distance maps to be used for training.
+    dmapdir = './Train Data Norm/'
+    # Set training parameters.
+    epochs = 10
+    learning_rate = 0.001
+    validation_split = 0.2
 
     # Create a callback that saves the model's weights
+    checkpoint_dir = os.path.dirname(checkpoint_path)
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True)
 
-    Model = distance_unet(3, 0.02)
+    Model = distance_unet(3, learning_rate)
 
     x=[]
     y=[]
 
-    maindir = '/home/bme001/20203080/RCNN/TUE_tijmen/'
-    dmapdir = './Distance Maps/'
+  
     for subdir, _, _ in os.walk(maindir):
                 # Skip the parent directory
         if subdir == maindir:
@@ -124,4 +128,4 @@ if __name__ == "__main__":
 
     x = np.concatenate(x)
     y = np.concatenate(y)
-    output = Model.fit(x,y, epochs = 10, validation_split=0.2, callbacks=[cp_callback])
+    output = Model.fit(x,y, epochs = epochs, validation_split=validation_split, callbacks=[cp_callback])
